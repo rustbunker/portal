@@ -1,0 +1,14 @@
+[package]
+name = "portal"
+version = "0.0.3"
+authors = ["Bevan Hunt <bevan@bevanhunt.com>"]
+edition = "2018"
+license = "MIT"
+keywords = ["full text search", "search", "search service", "portal"]
+description = "Full Text Search Web Service"
+repository = "https://github.com/apibillme/portal"
+categories = ["web-programming::http-server", "database-implementations", "authentication", "algorithms"]
+readme = "README.md"
+
+[dependencies]
+
