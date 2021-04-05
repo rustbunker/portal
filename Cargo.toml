@@ -19,7 +19,6 @@ serde_derive = "1"
 json = "0.12"
 rocksdb = "0.15"
 uuid = { version = "0.8", features = ["serde", "v4"] }
-jsonwebtoken = "7.0.1"
 go-flag = "0.1"
 lazy_static = "1.4"
 anyhow = "1"
@@ -29,3 +28,4 @@ http-types = "2"
 tide-rustls = "0.3"
 tide-acme = "0.1.0"
 sonic-channel = { version = "0.4", features = ["ingest"] }
+surf = "2.2"

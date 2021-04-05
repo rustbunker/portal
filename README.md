@@ -12,7 +12,7 @@ Portal is built to be simple and fast as possible with JWT verification, indexin
 
 Indexing is batch indexing by default.
 
-To use this service you need a valid JWT token from a service like [broker](https://crates.io/crates/broker) and a running [sonic](https://crates.io/crates/sonic-server) server.
+To use this service you need to have running [sonic](https://crates.io/crates/sonic-server) server and a [broker](https://crates.io/crates/broker) server.
 
 ### Features
 
@@ -24,7 +24,7 @@ To use this service you need a valid JWT token from a service like [broker](http
 * Supports SSL - full end-to-end encryption
 * JSON API
 * Auto-provision and renews SSL cert via LetsEncrypt
-* Built on [Sonic](https://crates.io/crates/sonic-server) 
+* Built on [Sonic](https://crates.io/crates/sonic-server) and [Broker](https://crates.io/crates/broker)
 
 ### Use
 
@@ -140,7 +140,8 @@ will return: `200` or `500` or `400` or `401`
 - the domain flag is the domain name (e.g. api.broker.com) of the domain you want to register with LetsEncrypt - must be fully resolvable 
 - the sonic_server flag is the sonic domain/ip/port of the sonic server - default `localhost:1491`
 - the sonic_password flag is the sonic password set in the sonic config file - default `SecretPassword`
-- production example: `./portal --secure="true" --jwt_secret="xTJEX234$##$" --domain="index.broker.com" --sonic_server="sonic.broker.com" --sonic_password="wj34T%$Dx"`
+- the broker flag is the broker domain/ip/port of the broker server - default `http://localhost:8080`
+- production example: `./portal --secure="true" --jwt_secret="xTJEX234$##$" --domain="index.broker.com" --sonic_server="sonic.broker.com" --sonic_password="wj34T%$Dx" --broker="https://broker.broker.com"`
 
 ### TechStack
 

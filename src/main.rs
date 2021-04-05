@@ -1,7 +1,7 @@
-use std::iter::Iterator;
+use std::{iter::Iterator, str::FromStr};
 use serde_derive::{Deserialize, Serialize};
 use anyhow::Result;
-use jsonwebtoken::{TokenData, decode, Validation, DecodingKey};
+use surf::http::{Url, Method, Mime};
 use lazy_static::lazy_static;
 use std::sync::Arc;
 use serde_json::json;
@@ -38,13 +38,13 @@ pub struct Claims {
 pub struct EnvVarConfig {
   pub port: u16,
   pub origin: String,
-  pub jwt_secret: String,
   pub db: String,
   pub secure: bool,
   pub certs: String,
   pub domain: String,
   pub sonic_server: String,
   pub sonic_password: String,
+  pub broker: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -130,29 +130,29 @@ fn env_var_config() -> EnvVarConfig {
     let mut port : u16 = 8888;
     let mut secure = false;
     let mut origin = "*".to_string();
-    let mut jwt_secret = "secret".to_string();
     let mut db: String = "db".to_string();
     let mut certs = "certs".to_string();
     let mut domain = "localhost".to_string();
     let mut sonic_server = "localhost:1491".to_string();
     let mut sonic_password = "SecretPassword".to_string();
+    let mut broker = "http://localhost:8080".to_string();
     
     let _ : Vec<String> = go_flag::parse(|flags| {
         flags.add_flag("port", &mut port);
         flags.add_flag("origin", &mut origin);
-        flags.add_flag("jwt_secret", &mut jwt_secret);
         flags.add_flag("secure", &mut secure);
         flags.add_flag("db", &mut db);
         flags.add_flag("domain", &mut domain);
         flags.add_flag("certs", &mut certs);
-        flags.add_flag("sonic_conn", &mut sonic_server);
+        flags.add_flag("sonic_server", &mut sonic_server);
         flags.add_flag("sonic_password", &mut sonic_password);
+        flags.add_flag("broker", &mut broker);
     });
 
-    EnvVarConfig{port, origin, jwt_secret, secure, domain, certs, db, sonic_server, sonic_password}
+    EnvVarConfig{port, origin, secure, domain, certs, db, sonic_server, sonic_password, broker}
 }
 
-async fn jwt_verify(token: String) -> Result<Option<TokenData<Claims>>> {
+async fn jwt_verify(token: String) -> Result<bool> {
 
     let configure = env_var_config();
 
@@ -160,12 +160,25 @@ async fn jwt_verify(token: String) -> Result<Option<TokenData<Claims>>> {
     let auth_type = parts.next().unwrap();
     if auth_type == "Bearer" {
         let token = parts.next().unwrap();
-        let _ = match decode::<Claims>(&token,  &DecodingKey::from_secret(configure.jwt_secret.as_ref()), &Validation::default()) {
-            Ok(c) => { return Ok(Some(c)); },
-            Err(_) => { return Ok(None); }
-        };
-    } 
-    Ok(None)
+
+        let broker_url = format!("{}/verify", configure.broker);
+        let auth = format!("Bearer {}", token);
+        let url = Url::parse(&broker_url)?;
+        let mime = Mime::from_str("application/json").unwrap();
+        let request = surf::Request::builder(Method::Get, url.clone())
+        .header("authorization", &auth)
+        .content_type(mime)
+        .build();
+
+        let res = surf::client().send(request).await.unwrap();
+        if res.status() == 200 {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    } else {
+        Ok(false)
+    }
 }
 
 fn index_with_sonic(items: Vec<Item>) -> Result<()> {
@@ -263,17 +276,16 @@ async fn index(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let jwt_value = jwt_verify(token).await?;
-            match jwt_value {
-                Some(_) => {
+            let check = jwt_verify(token).await?;
+            if check {
                     let r =  req.body_string().await?;
                     let index_form : IndexForm = serde_json::from_str(&r)?;
                     let items = index_form.items;
                     puts_items(items.clone())?;
                     index_with_sonic(items.clone())?;
                     Ok(tide::Response::builder(200).header("content-type", "application/json").build())
-                },
-                None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
+            } else {
+                Ok(tide::Response::builder(401).header("content-type", "application/json").build())
             }
         },
         None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
@@ -285,17 +297,16 @@ async fn deindex(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let jwt_value = jwt_verify(token).await?;
-            match jwt_value {
-                Some(_) => {
-                    let r =  req.body_string().await?;
-                    let deindex_form : DeindexForm = serde_json::from_str(&r)?;
-                    let ids = deindex_form.ids;
-                    del_items(ids.clone()).unwrap();
-                    deindex_with_sonic(ids.clone()).unwrap();
-                    Ok(tide::Response::builder(200).header("content-type", "application/json").build())
-                },
-                None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
+            let check = jwt_verify(token).await?;
+            if check {
+                let r =  req.body_string().await?;
+                let deindex_form : DeindexForm = serde_json::from_str(&r)?;
+                let ids = deindex_form.ids;
+                del_items(ids.clone()).unwrap();
+                deindex_with_sonic(ids.clone()).unwrap();
+                Ok(tide::Response::builder(200).header("content-type", "application/json").build())
+            } else {
+                Ok(tide::Response::builder(401).header("content-type", "application/json").build())
             }
         },
         None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
@@ -307,15 +318,14 @@ async fn search(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let jwt_value = jwt_verify(token).await?;
-            match jwt_value {
-                Some(_) => {
+            let check = jwt_verify(token).await?;
+            if check {
                     let r =  req.body_string().await?;
                     let search_form : SearchForm = serde_json::from_str(&r)?;
                     let result = search_with_sonic(search_form)?;
                     Ok(tide::Response::builder(200).body(json!(result)).header("content-type", "application/json").build())
-                },
-                None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
+            } else {
+                Ok(tide::Response::builder(401).header("content-type", "application/json").build())
             }
         },
         None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
@@ -327,15 +337,14 @@ async fn suggest(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let jwt_value = jwt_verify(token).await?;
-            match jwt_value {
-                Some(_) => {
-                    let r =  req.body_string().await.unwrap();
-                    let suggest_form : SuggestForm = serde_json::from_str(&r)?;
-                    let result = suggest_with_sonic(suggest_form)?;
-                    Ok(tide::Response::builder(200).body(json!(result)).header("content-type", "application/json").build())
-                },
-                None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
+            let check = jwt_verify(token).await?;
+            if check {
+                let r =  req.body_string().await.unwrap();
+                let suggest_form : SuggestForm = serde_json::from_str(&r)?;
+                let result = suggest_with_sonic(suggest_form)?;
+                Ok(tide::Response::builder(200).body(json!(result)).header("content-type", "application/json").build())
+            } else {
+                Ok(tide::Response::builder(401).header("content-type", "application/json").build())
             }
         },
         None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
