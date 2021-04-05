@@ -4,15 +4,15 @@
 
 ### Purpose
 
-The purpose of this service is to be your full text search web service for JavaScript front-ends like React with fetch.
+The purpose of this service is to be your full text search web service for any JSON client including JavaScript front-ends like React with fetch.
 
-Portal is a full replacement for [ElasticSearch](https://www.elastic.co/) and [MeiliSearch](https://github.com/meilisearch/MeiliSearch). These services are either too complex, too resource hungry, and/or too slow.
+Portal is a full replacement for [ElasticSearch](https://www.elastic.co/) and [MeiliSearch](https://github.com/meilisearch/MeiliSearch). These services are too complex, too resource hungry, and too slow.
 
-Portal is built to be simple and fast as possible with JWT verification, indexing, deindexing, search, and suggest. 
+Portal is built to be simple and blazing fast with JWT verification, indexing, deindexing, search, and suggest. 
 
 Indexing is batch indexing by default.
 
-To use this service you need to have running [sonic](https://crates.io/crates/sonic-server) server and a [broker](https://crates.io/crates/broker) server.
+To use this service you need to have a running [sonic](https://crates.io/crates/sonic-server) server and a [broker](https://crates.io/crates/broker) server.
 
 ### Features
 

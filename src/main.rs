@@ -186,6 +186,14 @@ fn index_with_sonic(items: Vec<Item>) -> Result<()> {
 
     let channel = IngestChannel::start(configure.sonic_server, configure.sonic_password)?;
     for item in items {
+        match get_item_by_id(item.id)? {
+            Some(item) => {
+                let mut ids = Vec::new();
+                ids.push(item.id);
+                deindex_with_sonic(ids)?;
+            },
+            None => {}
+        }
         for (field, value) in item.clone().data {
             for index_field in item.indexes.clone() {
                 let oid = format!("{}_{}", item.id.to_string(), index_field);
@@ -288,8 +296,8 @@ async fn index(mut req: Request<()>) -> tide::Result {
                     let r =  req.body_string().await?;
                     let index_form : IndexForm = serde_json::from_str(&r)?;
                     let items = index_form.items;
-                    puts_items(items.clone())?;
                     index_with_sonic(items.clone())?;
+                    puts_items(items.clone())?;
                     Ok(tide::Response::builder(200).header("content-type", "application/json").build())
             } else {
                 Ok(tide::Response::builder(401).header("content-type", "application/json").build())
@@ -309,8 +317,8 @@ async fn deindex(mut req: Request<()>) -> tide::Result {
                 let r =  req.body_string().await?;
                 let deindex_form : DeindexForm = serde_json::from_str(&r)?;
                 let ids = deindex_form.ids;
-                del_items(ids.clone()).unwrap();
-                deindex_with_sonic(ids.clone()).unwrap();
+                del_items(ids.clone())?;
+                deindex_with_sonic(ids.clone())?;
                 Ok(tide::Response::builder(200).header("content-type", "application/json").build())
             } else {
                 Ok(tide::Response::builder(401).header("content-type", "application/json").build())
@@ -325,7 +333,7 @@ async fn search(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let check = jwt_verify(token).await.unwrap();
+            let check = jwt_verify(token).await?;
             if check {
                     let r =  req.body_string().await?;
                     let search_form : SearchForm = serde_json::from_str(&r)?;
@@ -346,7 +354,7 @@ async fn suggest(mut req: Request<()>) -> tide::Result {
             let token = token_header.last().to_string();
             let check = jwt_verify(token).await?;
             if check {
-                let r =  req.body_string().await.unwrap();
+                let r =  req.body_string().await?;
                 let suggest_form : SuggestForm = serde_json::from_str(&r)?;
                 let result = suggest_with_sonic(suggest_form)?;
                 Ok(tide::Response::builder(200).body(json!(result)).header("content-type", "application/json").build())
