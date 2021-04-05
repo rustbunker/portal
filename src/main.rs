@@ -188,11 +188,12 @@ fn index_with_sonic(items: Vec<Item>) -> Result<()> {
     for item in items {
         for (field, value) in item.clone().data {
             for index_field in item.indexes.clone() {
+                let oid = format!("{}_{}", item.id.to_string(), index_field);
                 if index_field == field && item.clone().locale == None {
-                    channel.push(&item.collection, &item.bucket, &item.id.to_string(), &value.to_string())?;
+                    channel.push(&item.collection, &item.bucket, &oid, &value.to_string())?;
                 }
                 else if index_field == field && item.clone().locale != None {
-                    channel.push_with_locale(&item.collection, &item.bucket, &item.id.to_string(), &value.to_string(), &item.clone().locale.unwrap())?;
+                    channel.push_with_locale(&item.collection, &item.bucket, &oid, &value.to_string(), &item.clone().locale.unwrap())?;
                 }
             }
         }
@@ -207,7 +208,10 @@ fn deindex_with_sonic(ids: Vec<uuid::Uuid>) -> Result<()> {
     for id in ids {
         match get_item_by_id(id)? {
             Some(item) => {
-                channel.flusho(&item.collection, &item.bucket, &item.id.to_string())?;
+                for index in item.indexes {
+                    let oid = format!("{}_{}", item.id.to_string(), index);
+                    channel.flusho(&item.collection, &item.bucket, &oid)?;
+                }
             },
             None => {}
         }
@@ -225,7 +229,8 @@ fn search_with_sonic(sf: SearchForm) -> Result<Vec<Item>> {
     if sf.offset != None && sf.limit != None {
         let ids: Vec<String> = channel.query_with_limit_and_offset(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap(), sf.offset.unwrap())?;
         for id_str in ids {
-            let id = uuid::Uuid::parse_str(&id_str)?;
+            let uid: Vec<&str> = id_str.split("_").collect();
+            let id = uuid::Uuid::parse_str(&uid[0])?;
             let item = get_item_by_id(id)?;
             items.push(item.unwrap());
         }
@@ -233,7 +238,8 @@ fn search_with_sonic(sf: SearchForm) -> Result<Vec<Item>> {
     else if sf.offset == None && sf.limit != None {
         let ids: Vec<String> = channel.query_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?;
         for id_str in ids {
-            let id = uuid::Uuid::parse_str(&id_str)?;
+            let uid: Vec<&str> = id_str.split("_").collect();
+            let id = uuid::Uuid::parse_str(&uid[0])?;
             match get_item_by_id(id)? {
                 Some(item) => {
                     items.push(item);
@@ -245,7 +251,8 @@ fn search_with_sonic(sf: SearchForm) -> Result<Vec<Item>> {
     else {
         let ids: Vec<String> = channel.query(&sf.collection, &sf.bucket, &sf.query)?;
         for id_str in ids {
-            let id = uuid::Uuid::parse_str(&id_str)?;
+            let uid: Vec<&str> = id_str.split("_").collect();
+            let id = uuid::Uuid::parse_str(&uid[0])?;
             match get_item_by_id(id)? {
                 Some(item) => {
                     items.push(item);
@@ -318,7 +325,7 @@ async fn search(mut req: Request<()>) -> tide::Result {
     match token_value {
         Some(token_header) => {
             let token = token_header.last().to_string();
-            let check = jwt_verify(token).await?;
+            let check = jwt_verify(token).await.unwrap();
             if check {
                     let r =  req.body_string().await?;
                     let search_form : SearchForm = serde_json::from_str(&r)?;
