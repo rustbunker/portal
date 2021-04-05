@@ -28,6 +28,8 @@ To use this service you need to have running [sonic](https://crates.io/crates/so
 
 ### Use
 
+- create a user on [broker](https://crates.io/crates/broker), login, and get a JWT - then attach the JWT as an Authorization: Bearer {token} to the following JSON API endpoints
+
 #### Index
 
 ```html
