@@ -133,7 +133,6 @@ will return: `200` or `500` or `400` or `401`
 
 - the origin can be passed in as a flag - default `*`
 - the port can be passed in as a flag - default `8888` - can only be set for unsecure connections
-- the jwt_secret (for jwts) should be passed in as a flag - default `secret`
 - the secure flag (https) and can be true or false - default `false`
 - the certs flag is the storage path of LetsEncrypt certs - default `certs`
 - the db flag is the path where the embedded database will be saved - default `db`
@@ -141,7 +140,7 @@ will return: `200` or `500` or `400` or `401`
 - the sonic_server flag is the sonic domain/ip/port of the sonic server - default `localhost:1491`
 - the sonic_password flag is the sonic password set in the sonic config file - default `SecretPassword`
 - the broker flag is the broker domain/ip/port of the broker server - default `http://localhost:8080`
-- production example: `./portal --secure="true" --jwt_secret="xTJEX234$##$" --domain="index.broker.com" --sonic_server="sonic.broker.com" --sonic_password="wj34T%$Dx" --broker="https://broker.broker.com"`
+- production example: `./portal --secure="true" --domain="index.broker.com" --sonic_server="sonic.broker.com" --sonic_password="wj34T%$Dx" --broker="https://broker.broker.com"`
 
 ### TechStack
 
