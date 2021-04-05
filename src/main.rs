@@ -127,7 +127,7 @@ fn del_items(ids: Vec<uuid::Uuid>) -> Result<()> {
 
 fn env_var_config() -> EnvVarConfig {
  
-    let mut port : u16 = 8080;
+    let mut port : u16 = 8888;
     let mut secure = false;
     let mut origin = "*".to_string();
     let mut jwt_secret = "secret".to_string();
@@ -221,47 +221,41 @@ fn search_with_sonic(sf: SearchForm) -> Result<Vec<Item>> {
         let ids: Vec<String> = channel.query_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?;
         for id_str in ids {
             let id = uuid::Uuid::parse_str(&id_str)?;
-            let item = get_item_by_id(id)?;
-            items.push(item.unwrap());
+            match get_item_by_id(id)? {
+                Some(item) => {
+                    items.push(item);
+                },
+                None => {}
+            }
         }
     }
     else {
         let ids: Vec<String> = channel.query(&sf.collection, &sf.bucket, &sf.query)?;
         for id_str in ids {
             let id = uuid::Uuid::parse_str(&id_str)?;
-            let item = get_item_by_id(id)?;
-            items.push(item.unwrap());
+            match get_item_by_id(id)? {
+                Some(item) => {
+                    items.push(item);
+                },
+                None => {}
+            }
         }
     }
 
     Ok(items)
 }
 
-fn suggest_with_sonic(sf: SuggestForm) -> Result<Vec<Item>> {
+fn suggest_with_sonic(sf: SuggestForm) -> Result<Vec<String>> {
     let configure = env_var_config();
 
     let channel = SearchChannel::start(configure.sonic_server, configure.sonic_password)?;
 
-    let mut items = Vec::new();
-
     if sf.limit != None {
-        let ids: Vec<String> = channel.suggest_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?;
-        for id_str in ids {
-            let id = uuid::Uuid::parse_str(&id_str)?;
-            let item = get_item_by_id(id)?;
-            items.push(item.unwrap());
-        }
+        return Ok(channel.suggest_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?);
     }
     else {
-        let ids: Vec<String> = channel.suggest(&sf.collection, &sf.bucket, &sf.query)?;
-        for id_str in ids {
-            let id = uuid::Uuid::parse_str(&id_str)?;
-            let item = get_item_by_id(id)?;
-            items.push(item.unwrap());
-        }
+        return Ok(channel.suggest(&sf.collection, &sf.bucket, &sf.query)?);
     }
-
-    Ok(items)
 }
 
 async fn index(mut req: Request<()>) -> tide::Result {
@@ -297,8 +291,8 @@ async fn deindex(mut req: Request<()>) -> tide::Result {
                     let r =  req.body_string().await?;
                     let deindex_form : DeindexForm = serde_json::from_str(&r)?;
                     let ids = deindex_form.ids;
-                    del_items(ids.clone())?;
-                    deindex_with_sonic(ids.clone())?;
+                    del_items(ids.clone()).unwrap();
+                    deindex_with_sonic(ids.clone()).unwrap();
                     Ok(tide::Response::builder(200).header("content-type", "application/json").build())
                 },
                 None => { Ok(tide::Response::builder(401).header("content-type", "application/json").build()) }
@@ -336,7 +330,7 @@ async fn suggest(mut req: Request<()>) -> tide::Result {
             let jwt_value = jwt_verify(token).await?;
             match jwt_value {
                 Some(_) => {
-                    let r =  req.body_string().await?;
+                    let r =  req.body_string().await.unwrap();
                     let suggest_form : SuggestForm = serde_json::from_str(&r)?;
                     let result = suggest_with_sonic(suggest_form)?;
                     Ok(tide::Response::builder(200).body(json!(result)).header("content-type", "application/json").build())

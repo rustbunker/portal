@@ -10,7 +10,7 @@ Portal is a full replacement for [ElasticSearch](https://www.elastic.co/) and [M
 
 Portal is built to be simple and fast as possible with JWT verification, indexing, deindexing, storage, search, and suggest. Indexing is batch indexing by default.
 
-To use this service you need a valid JWT token from a service like [broker](https://crates.io/crates/broker) and a runnign [sonic](https://crates.io/crates/sonic-server) server.
+To use this service you need a valid JWT token from a service like [broker](https://crates.io/crates/broker) and a running [sonic](https://crates.io/crates/sonic-server) server.
 
 ### Features
 
@@ -35,18 +35,20 @@ POST /index
 example:
 ```json
 {
-    "collection": "coffee", 
-    "bucket": "tenant_1", 
-    "id": "49e28aae-88d4-4c19-86d8-51f2c9f11039", 
-    "data": {
-        "name": "roasted",
-        "image": "https://img.com/bucket/123/123.jpg"
-    },
-    "locale": "en",
-    "indexes": ["name"]
+    "items": [{
+        "collection": "coffee", 
+        "bucket": "tenant_1", 
+        "id": "49e28aae-88d4-4c19-86d8-51f2c9f11039", 
+        "data": {
+            "name": "roasted",
+            "image": "https://img.com/bucket/123/123.jpg"
+        },
+        "locale": "eng",
+        "indexes": ["name"]
+    }]
 }
 ```
-- note: `locale` is an optional field - if not defined locale will be auto-detected
+- note: `locale` is an optional field of an [ISO 639-3 locale code](https://iso639-3.sil.org/code_tables/639/data) - if not defined locale will be auto-detected
 
 will return: `200` or `500` or `400` or `401`
 
@@ -62,7 +64,7 @@ POST /search
     "bucket": "tenant_1", 
     "query": "roasted",
     "limit": 10,
-    "offset: 10
+    "offset": 10
 }
 ```
 - note: limit and offset are optional fields
@@ -80,7 +82,7 @@ will return: `200` or `500` or `400` or `401`
             "name": "roasted",
             "image": "https://img.com/bucket/123/123.jpg"
         },
-        "locale": "en",
+        "locale": "eng",
         "indexes": ["name"]
     }
 ]
@@ -96,7 +98,7 @@ POST /suggest
 {
     "collection": "coffee", 
     "bucket": "tenant_1", 
-    "query": "roasted",
+    "query": "r",
     "limit": 10
 }
 ```
@@ -104,21 +106,9 @@ POST /suggest
 
 will return: `200` or `500` or `400` or `401`
 
-200 - will return an array of objects
+200 - will return an array of words (strings)
 ```json
-[
-    {
-        "collection": "coffee", 
-        "bucket": "tenant_1", 
-        "id": "49e28aae-88d4-4c19-86d8-51f2c9f11039", 
-        "data": {
-            "name": "roasted",
-            "image": "https://img.com/bucket/123/123.jpg"
-        },
-        "locale": "en",
-        "indexes": ["name"]
-    }
-]
+["roasted"]
 ```
 
 #### Deindex
@@ -128,7 +118,9 @@ POST /deindex
 ```
 - authenticated endpoint (Authorization: Bearer {jwt})
 ```json
-["49e28aae-88d4-4c19-86d8-51f2c9f11039"]
+{
+    "ids": ["49e28aae-88d4-4c19-86d8-51f2c9f11039"]
+}
 ```
 
 will return: `200` or `500` or `400` or `401`
@@ -138,7 +130,7 @@ will return: `200` or `500` or `400` or `401`
 ``` cargo install portal ```
 
 - the origin can be passed in as a flag - default `*`
-- the port can be passed in as a flag - default `8080` - can only be set for unsecure connections
+- the port can be passed in as a flag - default `8888` - can only be set for unsecure connections
 - the jwt_secret (for jwts) should be passed in as a flag - default `secret`
 - the secure flag (https) and can be true or false - default `false`
 - the certs flag is the storage path of LetsEncrypt certs - default `certs`
