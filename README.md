@@ -17,6 +17,7 @@ To use this service you need to have a running [sonic](https://crates.io/crates/
 ### Features
 
 * Very performant with almost no CPU and memory usage
+* Supports 87 natural languages
 * Under 500 lines of code
 * Supports CORS
 * Supports JWT authenication
