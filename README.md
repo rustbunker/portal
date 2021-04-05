@@ -29,7 +29,7 @@ To use this service you need a valid JWT token from a service like [broker](http
 #### Index
 
 ```html
-POST /insert 
+POST /index
 ```
 - authenticated endpoint (Authorization: Bearer {jwt})
 example:
