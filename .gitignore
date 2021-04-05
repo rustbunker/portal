@@ -4,6 +4,8 @@ tmp/*
 tmp
 example
 example/*
+db
+db/*
 
 # gitginore template for creating Snap packages
 # website: https://snapcraft.io/
