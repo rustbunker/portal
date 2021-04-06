@@ -234,6 +234,10 @@ will return: `200` or `500` or `400` or `401`
 - the broker flag is the broker domain/ip/port of the broker server - default `http://localhost:8080`
 - production example: `./portal --secure="true" --domain="index.broker.com" --sonic_server="sonic.broker.com" --sonic_password="wj34T%$Dx" --broker="https://broker.broker.com"`
 
+### Service
+
+There is an example `systemctl` service for Ubuntu called `portal.service` in the code
+
 ### TechStack
 
 * [Tide](https://crates.io/crates/tide)

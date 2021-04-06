@@ -1574,7 +1574,7 @@ dependencies = [
 
 [[package]]
 name = "portal"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "async-std",
