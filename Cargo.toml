@@ -27,5 +27,5 @@ driftwood = "0.0.6"
 http-types = "2"
 tide-rustls = "0.3"
 tide-acme = "0.1.0"
-sonic-channel = { version = "0.4", features = ["ingest"] }
+sonic-channel = { version = "1.0", features = ["ingest"] }
 surf = "2.2"
