@@ -84,12 +84,12 @@ pub struct SuggestForm {
 }
 
 fn replace(key: String, value: Vec<u8>) -> Result<()> {
-    DB.put(key.clone(), value.clone())?;
+    DB.put(key, value)?;
     Ok(())
 }
 
 fn delete(key: String) -> Result<()> {
-    DB.delete(key.clone())?;
+    DB.delete(key)?;
     Ok(())
 }
 
@@ -156,7 +156,7 @@ async fn jwt_verify(token: String) -> Result<bool> {
 
     let configure = env_var_config();
 
-    let mut parts = token.split(" ");
+    let mut parts = token.split(' ');
     let auth_type = parts.next().unwrap();
     if auth_type == "Bearer" {
         let token = parts.next().unwrap();
@@ -186,23 +186,20 @@ fn index_with_sonic(items: Vec<Item>) -> Result<()> {
 
     let channel = IngestChannel::start(configure.sonic_server, configure.sonic_password)?;
     for item in items {
-        match get_item_by_id(item.id)? {
-            Some(item) => {
-                let mut ids = Vec::new();
-                ids.push(item.id);
-                deindex_with_sonic(ids)?;
-            },
-            None => {}
+        if let Some(item) = get_item_by_id(item.id)? {
+            let ids = vec![item.id];
+            deindex_with_sonic(ids)?;
         }
-        for (field, value) in item.clone().data {
+        for (_field, value) in item.clone().data {
             for index_field in item.indexes.clone() {
-                let oid = format!("{}_{}", item.id.to_string(), index_field);
-                if index_field == field && item.clone().locale == None {
-                    channel.push(&item.collection, &item.bucket, &oid, &value.to_string())?;
-                }
-                else if index_field == field && item.clone().locale != None {
-                    channel.push_with_locale(&item.collection, &item.bucket, &oid, &value.to_string(), &item.clone().locale.unwrap())?;
-                }
+                let oid = format!("{}_{}", item.id, index_field);
+                let dest = Dest::col_buc(&item.collection, &item.bucket).obj(oid);
+
+                channel.push(PushRequest {
+                    dest,
+                    text: value.to_string(),
+                    lang: item.clone().locale.and_then(Lang::from_code),
+                })?;
             }
         }
     }
@@ -214,14 +211,12 @@ fn deindex_with_sonic(ids: Vec<uuid::Uuid>) -> Result<()> {
 
     let channel = IngestChannel::start(configure.sonic_server, configure.sonic_password)?;
     for id in ids {
-        match get_item_by_id(id)? {
-            Some(item) => {
-                for index in item.indexes {
-                    let oid = format!("{}_{}", item.id.to_string(), index);
-                    channel.flusho(&item.collection, &item.bucket, &oid)?;
-                }
-            },
-            None => {}
+        if let Some(item) = get_item_by_id(id)? {
+            for index in item.indexes {
+                let oid = format!("{}_{}", item.id, index);
+                let dest = Dest::col_buc(&item.collection, &item.bucket).obj(oid);
+                channel.flush(dest.into())?;
+            }
         }
     }
     Ok(())
@@ -234,40 +229,13 @@ fn search_with_sonic(sf: SearchForm) -> Result<Vec<Item>> {
 
     let mut items = Vec::new();
 
-    if sf.offset != None && sf.limit != None {
-        let ids: Vec<String> = channel.query_with_limit_and_offset(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap(), sf.offset.unwrap())?;
-        for id_str in ids {
-            let uid: Vec<&str> = id_str.split("_").collect();
-            let id = uuid::Uuid::parse_str(&uid[0])?;
-            let item = get_item_by_id(id)?;
-            items.push(item.unwrap());
-        }
-    }
-    else if sf.offset == None && sf.limit != None {
-        let ids: Vec<String> = channel.query_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?;
-        for id_str in ids {
-            let uid: Vec<&str> = id_str.split("_").collect();
-            let id = uuid::Uuid::parse_str(&uid[0])?;
-            match get_item_by_id(id)? {
-                Some(item) => {
-                    items.push(item);
-                },
-                None => {}
-            }
-        }
-    }
-    else {
-        let ids: Vec<String> = channel.query(&sf.collection, &sf.bucket, &sf.query)?;
-        for id_str in ids {
-            let uid: Vec<&str> = id_str.split("_").collect();
-            let id = uuid::Uuid::parse_str(&uid[0])?;
-            match get_item_by_id(id)? {
-                Some(item) => {
-                    items.push(item);
-                },
-                None => {}
-            }
-        }
+    let dest = Dest::col_buc(sf.collection, sf.bucket);
+    let ids = channel.query(QueryRequest { dest, terms: sf.query, lang: None, limit: sf.limit, offset: sf.offset })?;
+    for id_str in ids {
+        let uid: Vec<&str> = id_str.split('_').collect();
+        let id = uuid::Uuid::parse_str(uid[0])?;
+        let item = get_item_by_id(id)?;
+        items.push(item.unwrap());
     }
 
     Ok(items)
@@ -278,12 +246,9 @@ fn suggest_with_sonic(sf: SuggestForm) -> Result<Vec<String>> {
 
     let channel = SearchChannel::start(configure.sonic_server, configure.sonic_password)?;
 
-    if sf.limit != None {
-        return Ok(channel.suggest_with_limit(&sf.collection, &sf.bucket, &sf.query, sf.limit.unwrap())?);
-    }
-    else {
-        return Ok(channel.suggest(&sf.collection, &sf.bucket, &sf.query)?);
-    }
+    let dest = Dest::col_buc(sf.collection, sf.bucket);
+    let res = channel.suggest(SuggestRequest { dest, word: sf.query, limit: sf.limit })?;
+    Ok(res)
 }
 
 async fn index(mut req: Request<()>) -> tide::Result {
@@ -293,12 +258,12 @@ async fn index(mut req: Request<()>) -> tide::Result {
             let token = token_header.last().to_string();
             let check = jwt_verify(token).await?;
             if check {
-                    let r =  req.body_string().await?;
-                    let index_form : IndexForm = serde_json::from_str(&r)?;
-                    let items = index_form.items;
-                    index_with_sonic(items.clone())?;
-                    puts_items(items.clone())?;
-                    Ok(tide::Response::builder(200).header("content-type", "application/json").build())
+                let r =  req.body_string().await?;
+                let index_form : IndexForm = serde_json::from_str(&r)?;
+                let items = index_form.items;
+                index_with_sonic(items.clone())?;
+                puts_items(items)?;
+                Ok(tide::Response::builder(200).header("content-type", "application/json").build())
             } else {
                 Ok(tide::Response::builder(401).header("content-type", "application/json").build())
             }
@@ -318,7 +283,7 @@ async fn deindex(mut req: Request<()>) -> tide::Result {
                 let deindex_form : DeindexForm = serde_json::from_str(&r)?;
                 let ids = deindex_form.ids;
                 del_items(ids.clone())?;
-                deindex_with_sonic(ids.clone())?;
+                deindex_with_sonic(ids)?;
                 Ok(tide::Response::builder(200).header("content-type", "application/json").build())
             } else {
                 Ok(tide::Response::builder(401).header("content-type", "application/json").build())
